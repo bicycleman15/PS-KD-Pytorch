@@ -22,9 +22,9 @@ class DirectroyMaker:
             os.makedirs(self.root)
         
         now = datetime.now()
-        time_idx = '_%s-%s-%s-%s-%s-%s' % (now.year,now.month,now.day,now.hour, now.minute,now.second)
+        time_idx = "_".join(str(now).split(" "))
         # --save_dir
-        detail_dir = args.data_type + "_" + args.classifier_type + "_PSKD_" + str(args.PSKD) + time_idx
+        detail_dir = args.data_type + "_" + args.classifier_type + "_PSKD_" + str(args.PSKD) + "_" + time_idx
         
         create_dir_list = []
         if self.save_model:

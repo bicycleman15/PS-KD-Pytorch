@@ -1,7 +1,7 @@
 #--------------
 #CNN-architecture
 #--------------
-from models import *
+from models import _get_cifar_resnet, PyramidNet, PyramidNet_ShakeDrop, CIFAR_ResNet18_preActBasic, CIFAR_ResNet101_Bottle, CIFAR_DenseNet121, CifarResNeXt, ResNet
 
 #--------------
 #util
@@ -29,6 +29,8 @@ def get_network(args):
             net = CIFAR_DenseNet121(num_classes=100, bias=True)
         elif args.classifier_type == 'ResNeXt':
             net = CifarResNeXt(cardinality=8, depth=29, nlabels=100, base_width=64, widen_factor=4)
+        elif "resnet" in args.classifier_type:
+            net = _get_cifar_resnet(args.classifier_type, "cifar100")
 
     if args.data_type == 'imagenet':
         if args.classifier_type == 'ResNet152':

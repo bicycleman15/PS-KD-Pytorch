@@ -56,10 +56,10 @@ def calc_aurc(confidences, labels):
     n = len(labels)
     indices = np.argsort(max_confs)
     labels, predictions, confidences = labels[indices][::-1], predictions[indices][::-1], confidences[indices][::-1]
-    risk_cov = np.divide(np.cumsum(labels != predictions).astype(np.float), np.arange(1, n+1))
+    risk_cov = np.divide(np.cumsum(labels != predictions).astype(float), np.arange(1, n+1))
     nrisk = np.sum(labels != predictions)
     aurc = np.mean(risk_cov)
-    opt_aurc = (1./n) * np.sum(np.divide(np.arange(1, nrisk + 1).astype(np.float), n - nrisk + np.arange(1, nrisk + 1)))
+    opt_aurc = (1./n) * np.sum(np.divide(np.arange(1, nrisk + 1).astype(float), n - nrisk + np.arange(1, nrisk + 1)))
     eaurc = aurc - opt_aurc
             
     return aurc, eaurc

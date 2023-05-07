@@ -195,6 +195,7 @@ def main():
 
 def main_worker(gpu, ngpus_per_node, model_dir, log_dir, args):
     best_acc = 0
+    best_ECE = float("inf")
 
     
     #----------------------------------------------------
@@ -343,7 +344,7 @@ def main_worker(gpu, ngpus_per_node, model_dir, log_dir, args):
         #---------------------------------------------------
         #  Validation
         #---------------------------------------------------
-        acc = val(
+        acc, cur_ece = val(
                   criterion_CE,
                   net,
                   epoch,
@@ -365,6 +366,7 @@ def main_worker(gpu, ngpus_per_node, model_dir, log_dir, args):
 
         if acc > best_acc:
             best_acc = acc
+            best_ECE = cur_ece
             save_on_master(save_dict,os.path.join(model_dir, 'checkpoint_best.pth'))
             if is_main_process():
                 print(C.green("[!] Save best checkpoint."))
@@ -374,6 +376,7 @@ def main_worker(gpu, ngpus_per_node, model_dir, log_dir, args):
             if is_main_process():
                 print(C.green("[!] Save checkpoint."))
 
+    print(f"========== Best stats are: top1: {best_acc} and ECE: {best_ECE} ==========")
     if args.distributed:
         dist.barrier()
         dist.destroy_process_group()
@@ -569,7 +572,7 @@ def val(criterion_CE,
                     total))
 
 
-    return val_top1.avg
+    return val_top1.avg, ece
 
 
 
