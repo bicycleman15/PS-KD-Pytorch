@@ -19,7 +19,7 @@ from models.network import get_network
 #--------------
 #  Datalodader
 #--------------
-from loader import custom_dataloader2
+from loader import custom_dataloader
 
 #----------------------------------------------------
 #  Etc
@@ -179,7 +179,7 @@ def main(args):
     #---------------------------------------------------
     #  Load Dataset
     #---------------------------------------------------
-    train_loader, valid_loader, test_loader, train_sampler = custom_dataloader2.dataloader(args)
+    train_loader, valid_loader, test_loader, train_sampler = custom_dataloader.dataloader(args)
     
     # Calculate the SCE and ECE Loss
     sce_loss, ece_loss, ece_auth = calculate_sce_ece_loss(model, test_loader, args)

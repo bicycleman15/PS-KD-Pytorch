@@ -1,7 +1,7 @@
 #--------------
 #CNN-architecture
 #--------------
-from models import _get_cifar_resnet, _get_cifar_convnet, PyramidNet, PyramidNet_ShakeDrop, CIFAR_ResNet18_preActBasic, CIFAR_ResNet101_Bottle, CIFAR_DenseNet121, CifarResNeXt, ResNet
+from models import _get_cifar_resnet, _get_cifar_convnet, PyramidNet, PyramidNet_ShakeDrop, CIFAR_ResNet18_preActBasic, CIFAR_ResNet101_Bottle, CIFAR_DenseNet121, CifarResNeXt, ResNet, _get_tinyimagenet_resnet, _get_mobilenetv2, _get_shufflenetv2
 
 #--------------
 #util
@@ -33,6 +33,10 @@ def get_network(args):
             net = _get_cifar_resnet(args.classifier_type, "cifar100")
         elif "convnet" in args.classifier_type:
             net = _get_cifar_convnet(args.classifier_type, "cifar100")
+        elif "mobilenetv2" in args.classifier_type:
+            net = _get_mobilenetv2(args.classifier_type, "cifar100")
+        elif "shufflenetv2" in args.classifier_type:
+            net = _get_shufflenetv2(args.classifier_type, "cifar100")
 
     if args.data_type == 'cifar10':
         if args.classifier_type == 'PyramidNet':
@@ -51,10 +55,22 @@ def get_network(args):
             net = _get_cifar_resnet(args.classifier_type, "cifar10")
         elif "convnet" in args.classifier_type:
             net = _get_cifar_convnet(args.classifier_type, "cifar10")
+        elif "mobilenetv2" in args.classifier_type:
+            net = _get_mobilenetv2(args.classifier_type, "cifar10")
+        elif "shufflenetv2" in args.classifier_type:
+            net = _get_shufflenetv2(args.classifier_type, "cifar10")
     
     if args.data_type == 'imagenet':
         if args.classifier_type == 'ResNet152':
-            net = ResNet(dataset = 'imagenet', depth=152, num_classes=1000, bottleneck=True)                
+            net = ResNet(dataset = 'imagenet', depth=152, num_classes=1000, bottleneck=True)   
+
+    if args.data_type == 'tiny_imagenet':
+        if "resnet" in args.classifier_type:
+            net = _get_tinyimagenet_resnet(args.classifier_type, "tiny_imagenet")
+        elif "mobilenetv2" in args.classifier_type:
+            net = _get_mobilenetv2(args.classifier_type, "tiny_imagenet")
+        elif "shufflenetv2" in args.classifier_type:
+            net = _get_shufflenetv2(args.classifier_type, "tiny_imagenet")
  
     print(C.underline(C.yellow("[Info] Building model: {}".format(args.classifier_type))))
 

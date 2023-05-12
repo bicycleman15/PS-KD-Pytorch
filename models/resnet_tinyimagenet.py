@@ -1,25 +1,28 @@
-'''Resnet for cifar dataset.
-Ported form
-https://github.com/facebook/fb.resnet.torch
-and
-https://github.com/pytorch/vision/blob/master/torchvision/models/resnet.py
-(c) YANG, Wei
+# taken from https://github.com/torrvision/focal_calibration/blob/main/Net/resnet_tiny_imagenet.py
+'''
+Pytorch implementation of ResNet models.
+Reference:
+[1] He, K., Zhang, X., Ren, S., Sun, J.: Deep residual learning for image recognition. In: CVPR, 2016.
 '''
 import torch
-import torch.nn as nn
 import math
+import torch.nn as nn
+import torch.nn.functional as F
 
-from models.resnet import resnet50
 
-
-__all__ = ['resnet']
+# --- HELPERS ---
 
 def conv3x3(in_planes, out_planes, stride=1):
-    "3x3 convolution with padding"
-    return nn.Conv2d(in_planes, out_planes, kernel_size=3, stride=stride,
-                     padding=1, bias=False)
+    '''
+        3x3 convolution with padding
+    '''
+    return nn.Conv2d(in_planes, out_planes, kernel_size=3, stride=stride, padding=1, bias=False)
+
+
+# --- COMPONENTS ---
 
 class BasicBlock(nn.Module):
+
     expansion = 1
 
     def __init__(self, inplanes, planes, stride=1, downsample=None):
@@ -51,15 +54,16 @@ class BasicBlock(nn.Module):
         return out
 
 
+
 class Bottleneck(nn.Module):
+
     expansion = 4
 
     def __init__(self, inplanes, planes, stride=1, downsample=None):
         super(Bottleneck, self).__init__()
         self.conv1 = nn.Conv2d(inplanes, planes, kernel_size=1, bias=False)
         self.bn1 = nn.BatchNorm2d(planes)
-        self.conv2 = nn.Conv2d(planes, planes, kernel_size=3, stride=stride,
-                               padding=1, bias=False)
+        self.conv2 = nn.Conv2d(planes, planes, kernel_size=3, stride=stride, padding=1, bias=False)
         self.bn2 = nn.BatchNorm2d(planes)
         self.conv3 = nn.Conv2d(planes, planes * 4, kernel_size=1, bias=False)
         self.bn3 = nn.BatchNorm2d(planes * 4)
@@ -92,32 +96,19 @@ class Bottleneck(nn.Module):
 
 class ResNet(nn.Module):
 
-    def __init__(self, depth, num_classes=1000, block_name='BasicBlock', **kwargs):
+    def __init__(self, block, layers, num_classes=200, **kwargs):
+        self.inplanes = 64
         super(ResNet, self).__init__()
-        # Model type specifies number of layers for CIFAR-10 model
-        if block_name.lower() == 'basicblock':
-            assert (depth - 2) % 6 == 0, 'When use basicblock, depth should be 6n+2, e.g. 20, 32, 44, 56, 110, 1202'
-            n = (depth - 2) // 6
-            self.block = BasicBlock
-        elif block_name.lower() == 'bottleneck':
-            assert (depth - 2) % 9 == 0, 'When use bottleneck, depth should be 9n+2, e.g. 20, 29, 47, 56, 110, 1199'
-            n = (depth - 2) // 9
-            self.block = Bottleneck
-        else:
-            raise ValueError('block_name shoule be Basicblock or Bottleneck')
-
-        self.num_classes = num_classes
-
-        self.inplanes = 16
-        self.conv1 = nn.Conv2d(3, 16, kernel_size=3, padding=1,
-                               bias=False)
-        self.bn1 = nn.BatchNorm2d(16)
+        self.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1,  bias=False)
+        self.bn1 = nn.BatchNorm2d(64)
         self.relu = nn.ReLU(inplace=True)
-        self.layer1 = self._make_layer(self.block, 16, n)
-        self.layer2 = self._make_layer(self.block, 32, n, stride=2)
-        self.layer3 = self._make_layer(self.block, 64, n, stride=2)
-        self.avgpool = nn.AvgPool2d(8)
-        self.fc = nn.Linear(64 * self.block.expansion, num_classes)
+        #self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+        self.layer1 = self._make_layer(block, 64, layers[0])
+        self.layer2 = self._make_layer(block, 128, layers[1], stride=2)
+        self.layer3 = self._make_layer(block, 256, layers[2], stride=2)
+        self.layer4 = self._make_layer(block, 512, layers[3], stride=2)
+        self.avgpool = nn.AdaptiveAvgPool2d(2)
+        self.fc = nn.Linear(512 * block.expansion * 4, num_classes)
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -131,8 +122,7 @@ class ResNet(nn.Module):
         downsample = None
         if stride != 1 or self.inplanes != planes * block.expansion:
             downsample = nn.Sequential(
-                nn.Conv2d(self.inplanes, planes * block.expansion,
-                          kernel_size=1, stride=stride, bias=False),
+                nn.Conv2d(self.inplanes, planes * block.expansion, kernel_size=1, stride=stride, bias=False),
                 nn.BatchNorm2d(planes * block.expansion),
             )
 
@@ -147,57 +137,59 @@ class ResNet(nn.Module):
     def forward(self, x):
         x = self.conv1(x)
         x = self.bn1(x)
-        x = self.relu(x)    # 32x32
+        x = self.relu(x)
+        #x = self.maxpool(x)
 
-        x = self.layer1(x)  # 32x32
-        x = self.layer2(x)  # 16x16
-        x = self.layer3(x)  # 8x8
+        x = self.layer1(x)
+        x = self.layer2(x)
+        x = self.layer3(x)
+        x = self.layer4(x)
 
         x = self.avgpool(x)
+        x = x.view(x.size(0), -1)
+        x = self.fc(x)
 
-        image_embedding = x.view(x.size(0), -1)
+        return x
 
-        classifier_scores = self.fc(image_embedding)
 
-        return classifier_scores
-
-def resnet8(**kwargs):
-    model = ResNet(depth=8, **kwargs)
+def resnet18(**kwargs):
+    model = ResNet(BasicBlock, [2, 2, 2, 2], **kwargs)
     return model
 
-def resnet32(**kwargs):
-    model = ResNet(depth=32, **kwargs)
+
+def resnet34(**kwargs):
+    model = ResNet(BasicBlock, [3, 4, 6, 3], **kwargs)
     return model
 
-def resnet56(**kwargs):
-    model = ResNet(depth=56, block_name="bottleneck", **kwargs)
+
+def resnet50(**kwargs):
+    model = ResNet(Bottleneck, [3, 4, 6, 3], **kwargs)
     return model
+
+
+def resnet101(**kwargs):
+    model = ResNet(Bottleneck, [3, 4, 23, 3], **kwargs)
+    return model
+
 
 def resnet110(**kwargs):
-    model = ResNet(depth=110, block_name="bottleneck", **kwargs)
+    model = ResNet(Bottleneck, [3, 4, 26, 3], **kwargs)
+    return model
+
+
+def resnet152(**kwargs):
+    model = ResNet(Bottleneck, [3, 8, 36, 3], **kwargs)
     return model
 
 model_dict = {
-    "resnet8" : resnet8,
-    "resnet32" : resnet32,
-    "resnet56" : resnet56,
-    "resnet110" : resnet110,
+    "resnet18" : resnet18,
+    "resnet34" : resnet34,
     "resnet50" : resnet50,
+    "resnet101" : resnet101,
+    "resnet110" : resnet110,
+    "resnet152" : resnet152,
 }
 
-def _get_cifar_resnet(model, dataset):
-    if dataset == "cifar10":
-        return model_dict[model](num_classes=10)
-    else:
-        return model_dict[model](num_classes=100)
-
-from torchsummary import summary
-
-if __name__ == "__main__":
-    model = resnet56(num_classes=100)
-
-    x = torch.randn(2,3,32,32)
-    y = model(x)
-    print(y.shape)
-
-    summary(model, (3, 32, 32), batch_size=-1, device="cpu")
+def _get_tinyimagenet_resnet(model, dataset):
+    model = model_dict[model]()
+    return model

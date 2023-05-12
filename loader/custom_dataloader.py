@@ -16,6 +16,7 @@ from torchvision import transforms
 # etc
 #--------------
 import os
+import random
 
 #--------------
 # utils 
@@ -23,6 +24,8 @@ import os
 from loader import custom_datasets
 from utils import custom_transform
 from utils.color import Colorer
+
+from loader.tiny_imagenet import TinyImageNet
 
 C = Colorer.instance()
 
@@ -112,6 +115,66 @@ def dataloader(args):
                                                    batch_size=args.batch_size,
                                                    sampler=None, shuffle=True,
                                                    num_workers=args.workers)
+
+    elif args.data_type == 'tiny_imagenet':
+
+        mean = [0.485, 0.456, 0.406],
+        stdv = [0.229, 0.224, 0.225]
+        
+        print(C.green("[!] [Rank {}] Preparing {} data..".format(args.rank, args.data_type)))
+
+        normalize = transforms.Normalize(
+            mean=[0.485, 0.456, 0.406],
+            std=[0.229, 0.224, 0.225]
+        )
+        
+        transform_train = transforms.Compose([                          
+                                              transforms.RandomCrop(64, padding=4),
+                                              transforms.RandomHorizontalFlip(),
+                                              transforms.ToTensor(),
+                                              normalize
+                                             ])
+        
+
+        transform_val = transforms.Compose([                               
+                                              transforms.ToTensor(),
+                                              normalize
+                                           ])
+        
+        trainset = TinyImageNet(   split='train',
+                               transform=transform_train,
+                               in_memory=False)
+        validset = TinyImageNet(    split='val',
+                                transform=transform_val,
+                                in_memory=False)
+
+        # create a val set from training set
+        idxs = list(range(len(trainset)))
+        random.seed(42)
+        random.shuffle(idxs)
+        split = int(0.1 * len(idxs))
+        train_idxs, valid_idxs = idxs[split:], idxs[:split]
+
+        train_sampler = torch.utils.data.SubsetRandomSampler(train_idxs)
+        
+        if args.multiprocessing_distributed:
+            train_sampler = torch.utils.data.distributed.DistributedSampler(trainset)
+            print(C.green("[!] [Rank {}] Distributed Sampler Data Loading Done".format(args.rank)))
+        else:
+            # train_sampler = None
+            print(C.green("[!] [Rank {}] Data Loading Done".format(args.rank)))
+        
+
+        train_loader = torch.utils.data.DataLoader(trainset, pin_memory=True, 
+                                                   batch_size=args.batch_size,
+                                                   sampler=train_sampler,
+                                                   shuffle=(train_sampler is None),
+                                                   num_workers=args.workers)
+    
+        valid_loader = torch.utils.data.DataLoader(validset, pin_memory=True,
+                                                   batch_size=args.batch_size,
+                                                   sampler=None, shuffle=False,
+                                                   num_workers=args.workers, drop_last=False)
     
     elif args.data_type == 'imagenet':
         mean=[0.485, 0.456, 0.406]

@@ -44,6 +44,7 @@ from utils.etc import progress_bar, is_main_process, save_on_master, paser_confi
 import os, logging
 import argparse
 import numpy as np
+import transformers
 
 
 #----------------------------------------------------
@@ -116,6 +117,7 @@ def get_learning_rate(optimizer):
     lr = []
     for param_group in optimizer.param_groups:
         lr += [param_group['lr']]
+        break
     return lr
 
 
@@ -281,6 +283,15 @@ def main_worker(gpu, ngpus_per_node, model_dir, log_dir, args):
         print(C.underline(C.yellow("[Info] all_predictions matrix shape {}".format(all_predictions.shape))))
     else:
         all_predictions = None
+
+    # define cosine scheduler
+    if args.data_type == "tiny_imagenet":
+        total_iters = int(len(train_loader) * args.end_epoch)
+        print(C.underline(C.yellow("[Info] Using CosineLR with warmup")))
+        print(C.underline(C.yellow("[Info] Total iters are {}".format(total_iters))))
+        scheduler = transformers.get_cosine_schedule_with_warmup(optimizer, 1000, total_iters)
+    else:
+        scheduler = None
     
     #----------------------------------------------------
     #  load status & Resume Learning
@@ -312,8 +323,9 @@ def main_worker(gpu, ngpus_per_node, model_dir, log_dir, args):
     cudnn.benchmark = True
 
     for epoch in range(args.start_epoch, args.end_epoch):
-
-        adjust_learning_rate(optimizer, epoch, args)
+        
+        if args.data_type != "tiny_imagenet":
+            adjust_learning_rate(optimizer, epoch, args)
         if args.distributed:
             train_sampler.set_epoch(epoch)
 
@@ -337,7 +349,7 @@ def main_worker(gpu, ngpus_per_node, model_dir, log_dir, args):
                                 epoch,
                                 alpha_t,
                                 train_loader,
-                                args)
+                                args, scheduler)
 
         if args.distributed:
             dist.barrier()
@@ -395,7 +407,8 @@ def train(all_predictions,
           epoch,
           alpha_t,
           train_loader,
-          args):
+          args, 
+          scheduler=None):
     
     
     train_top1 = AverageMeter()
@@ -406,10 +419,11 @@ def train(all_predictions,
     total = 0
 
     net.train()
-    current_LR = get_learning_rate(optimizer)[0]
-
+    
     for batch_idx, (inputs, targets, input_indices) in enumerate(train_loader):
-        
+
+        current_LR = get_learning_rate(optimizer)[0]
+
         if args.gpu is not None:
             inputs = inputs.cuda(non_blocking=True)
             targets = targets.cuda(non_blocking=True)
@@ -471,6 +485,10 @@ def train(all_predictions,
         
         progress_bar(epoch,batch_idx, len(train_loader), args, 'lr: {:.1e} | alpha_t: {:.3f} | loss: {:.3f} | top1_acc: {:.3f} | top5_acc: {:.3f} | correct/total({}/{})'.format(
             current_LR, alpha_t, train_losses.avg, train_top1.avg, train_top5.avg, correct, total))
+
+        if args.data_type == "tiny_imagenet":
+
+            scheduler.step()
 
     if args.distributed:
         dist.barrier()
