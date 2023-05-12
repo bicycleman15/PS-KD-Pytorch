@@ -10,6 +10,7 @@ from models.pyramid_shake_drop import *
 from models.resnext import *
 
 from models.resnet_cifar import _get_cifar_resnet
+from models.convnet_cifar import _get_cifar_convnet
 
 #for imagenet
 from models.resnet_imagenet import *

@@ -9,6 +9,7 @@ from utils.color import Colorer
 class DirectroyMaker:
     C = Colorer.instance()
     sub_dir_type = ['model','log','config']
+    
     def __init__(self, root, save_model=True,save_log=True,save_config=True):
         self.root = os.path.expanduser(root)
         self.save_model  = save_model
